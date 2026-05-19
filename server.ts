@@ -214,13 +214,23 @@ async function startServer() {
 
   // --- ADMIN ROUTES (Protected) ---
   app.get('/api/admin/profile', authenticateToken, (req, res) => {
-    const profile = db.prepare('SELECT * FROM admin_profile ORDER BY role DESC').get();
-    res.json(profile);
+    try {
+      const profile = db.prepare('SELECT * FROM admin_profile ORDER BY role DESC').get();
+      res.json(profile);
+    } catch (err: any) {
+      console.error('Error fetching admin profile:', err.message);
+      res.status(500).json({ error: 'Failed to fetch admin profile', details: err.message });
+    }
   });
 
   app.get('/api/admin/profile/:id', authenticateToken, (req, res) => {
-    const profile = db.prepare('SELECT * FROM admin_profile WHERE id = ?').get(req.params.id);
-    res.json(profile);
+    try {
+      const profile = db.prepare('SELECT * FROM admin_profile WHERE id = ?').get(req.params.id);
+      res.json(profile);
+    } catch (err: any) {
+      console.error('Error fetching admin profile by id:', err.message);
+      res.status(500).json({ error: 'Failed to fetch admin profile', details: err.message });
+    }
   });
 
   app.get('/api/admin/main', authenticateToken, (req, res) => {
@@ -234,9 +244,9 @@ async function startServer() {
       }
       console.log('Returning main admin:', mainAdmin);
       res.json(mainAdmin);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in /api/admin/main:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   });
 
@@ -244,6 +254,13 @@ async function startServer() {
     const { id } = req.params;
     const { name, email, password, profilePhoto } = req.body;
     try {
+      console.log('Updating admin profile with data:', { name, email });
+      
+      // Validate inputs
+      if (!name || !email) {
+        return res.status(400).json({ error: 'Missing required fields: name, email' });
+      }
+
       if (password && !password.startsWith('$2b$')) {
         const hashed = await bcrypt.hash(password, 10);
         db.prepare('UPDATE admin_profile SET name = ?, email = ?, password = ?, profilePhoto = ? WHERE id = ?')
@@ -253,7 +270,10 @@ async function startServer() {
           .run(name, email, profilePhoto, id);
       }
       res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Update failed' }); }
+    } catch (err: any) {
+      console.error('Error updating admin profile:', err.message);
+      res.status(500).json({ error: 'Failed to update admin profile', details: err.message });
+    }
   });
 
   // --- TEACHER ROUTES ---
@@ -266,7 +286,10 @@ async function startServer() {
         return { ...t, approvedOvertimeModuleIds };
       });
       res.json(teachersWithOvertime);
-    } catch (e) { res.status(500).json({ error: 'Fetch failed' }); }
+    } catch (err: any) {
+      console.error('Error fetching teachers:', err.message);
+      res.status(500).json({ error: 'Failed to fetch teachers', details: err.message });
+    }
   });
 
   app.get('/api/teachers/:id/workload', authenticateToken, (req, res) => {
@@ -282,23 +305,38 @@ async function startServer() {
         total: cm + td + tp,
         required: teacher?.requiredHours || 0
       });
-    } catch (e) { res.status(500).json({ error: 'Workload calculation failed' }); }
+    } catch (err: any) {
+      console.error('Error calculating workload:', err.message);
+      res.status(500).json({ error: 'Workload calculation failed', details: err.message });
+    }
   });
 
   app.post('/api/teachers', authenticateToken, isAdmin, async (req, res, next) => {
     try {
       const { name, email, password, grade, specialty, status, requiredHours, profilePhoto, prioritySessionType, weeklyEstimatedHours } = req.body;
+      console.log('Creating teacher with data:', { name, email });
+      
+      // Validate inputs
+      if (!name || !email) {
+        return res.status(400).json({ error: 'Missing required fields: name, email' });
+      }
+
       const hashedPassword = await bcrypt.hash(password || 'teacher123', 10);
       db.prepare('INSERT INTO teachers (id, name, email, password, grade, specialty, status, requiredHours, profilePhoto, prioritySessionType, weeklyEstimatedHours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(uuidv4(), name, email, hashedPassword, grade, specialty, status, requiredHours, profilePhoto || '', prioritySessionType || 'TD', weeklyEstimatedHours || '8h à 10h');
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error creating teacher:', err.message);
+      res.status(500).json({ error: 'Failed to create teacher', details: err.message });
+    }
   });
 
   app.put('/api/teachers/:id', authenticateToken, async (req, res, next) => {
     try {
       const { id } = req.params;
       const { name, email, password, profilePhoto, grade, specialty, status, requiredHours, prioritySessionType, weeklyEstimatedHours } = req.body;
+      console.log('Updating teacher with data:', { name, email });
+      
       if (password && !password.startsWith('$2b$')) {
         const hashed = await bcrypt.hash(password, 10);
         db.prepare('UPDATE teachers SET name = ?, email = ?, password = ?, profilePhoto = ?, grade = ?, specialty = ?, status = ?, requiredHours = ?, prioritySessionType = ?, weeklyEstimatedHours = ? WHERE id = ?')
@@ -308,33 +346,59 @@ async function startServer() {
           .run(name, email, profilePhoto, grade, specialty, status, requiredHours, prioritySessionType, weeklyEstimatedHours, id);
       }
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error updating teacher:', err.message);
+      res.status(500).json({ error: 'Failed to update teacher', details: err.message });
+    }
   });
 
   app.delete('/api/teachers/:id', authenticateToken, isAdmin, (req, res, next) => {
     try {
       db.prepare('DELETE FROM teachers WHERE id = ?').run(req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error deleting teacher:', err.message);
+      res.status(500).json({ error: 'Failed to delete teacher', details: err.message });
+    }
   });
 
   // --- PARCOURS ROUTES ---
   app.get('/api/parcours', authenticateToken, (req, res) => {
-    res.json(db.prepare('SELECT * FROM parcours').all());
+    try {
+      res.json(db.prepare('SELECT * FROM parcours').all());
+    } catch (err: any) {
+      console.error('Error fetching parcours:', err.message);
+      res.status(500).json({ error: 'Failed to fetch parcours', details: err.message });
+    }
   });
 
   app.post('/api/parcours', authenticateToken, isAdmin, (req, res, next) => {
     try {
       const { name, type, level, year, specialty, description } = req.body;
+      console.log('Creating parcours with data:', { name, type, level });
+      
+      // Validate inputs
+      if (!name) {
+        return res.status(400).json({ error: 'Missing required field: name' });
+      }
+
       db.prepare('INSERT INTO parcours (id, name, type, level, year, specialty, description) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(uuidv4(), name, type, level || null, year, specialty, description);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error creating parcours:', err.message);
+      res.status(500).json({ error: 'Failed to create parcours', details: err.message });
+    }
   });
 
   // --- MODULE ROUTES ---
   app.get('/api/modules', authenticateToken, (req, res) => {
-    res.json(db.prepare('SELECT * FROM modules').all());
+    try {
+      res.json(db.prepare('SELECT * FROM modules').all());
+    } catch (err: any) {
+      console.error('Error fetching modules:', err.message);
+      res.status(500).json({ error: 'Failed to fetch modules', details: err.message });
+    }
   });
 
   app.post('/api/modules', authenticateToken, isAdmin, (req, res, next) => {
@@ -366,87 +430,175 @@ async function startServer() {
     try {
       db.prepare('DELETE FROM modules WHERE id = ?').run(req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error deleting module:', err.message);
+      res.status(500).json({ error: 'Failed to delete module', details: err.message });
+    }
   });
 
   app.put('/api/modules/:id', authenticateToken, isAdmin, (req, res, next) => {
     try {
       const { code, name, semester, cmHours, tdHours, tpHours, parcoursId } = req.body;
+      console.log('Updating module with data:', { code, name, parcoursId });
+      
+      // Validate inputs
+      if (!code || !name) {
+        return res.status(400).json({ error: 'Missing required fields: code, name' });
+      }
+
       db.prepare('UPDATE modules SET code = ?, name = ?, semester = ?, cmHours = ?, tdHours = ?, tpHours = ?, parcoursId = ? WHERE id = ?')
         .run(code, name, semester, cmHours, tdHours, tpHours, parcoursId, req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error updating module:', err.message);
+      res.status(500).json({ error: 'Failed to update module', details: err.message });
+    }
   });
 
   app.delete('/api/parcours/:id', authenticateToken, isAdmin, (req, res, next) => {
     try {
       db.prepare('DELETE FROM parcours WHERE id = ?').run(req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error deleting parcours:', err.message);
+      res.status(500).json({ error: 'Failed to delete parcours', details: err.message });
+    }
   });
 
   app.put('/api/parcours/:id', authenticateToken, isAdmin, (req, res, next) => {
     try {
       const { name, type, level, year, specialty, description } = req.body;
+      console.log('Updating parcours with data:', { name, type });
+      
+      // Validate inputs
+      if (!name) {
+        return res.status(400).json({ error: 'Missing required field: name' });
+      }
+
       db.prepare('UPDATE parcours SET name = ?, type = ?, level = ?, year = ?, specialty = ?, description = ? WHERE id = ?')
         .run(name, type, level, year, specialty, description, req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error updating parcours:', err.message);
+      res.status(500).json({ error: 'Failed to update parcours', details: err.message });
+    }
   });
 
-  // --- MODULE ROUTES ---
+  // --- ASSIGNMENT ROUTES ---
   app.get('/api/assignments', authenticateToken, (req, res) => {
-    res.json(db.prepare('SELECT * FROM assignments').all());
+    try {
+      res.json(db.prepare('SELECT * FROM assignments').all());
+    } catch (err: any) {
+      console.error('Error fetching assignments:', err.message);
+      res.status(500).json({ error: 'Failed to fetch assignments', details: err.message });
+    }
   });
 
   app.post('/api/assignments', authenticateToken, isAdmin, (req, res, next) => {
     try {
       const { teacherId, moduleId, type, hours } = req.body;
+      console.log('Creating assignment with data:', { teacherId, moduleId, type, hours });
+      
+      // Validate inputs
+      if (!teacherId || !moduleId || !type || !hours) {
+        return res.status(400).json({ error: 'Missing required fields: teacherId, moduleId, type, hours' });
+      }
+
+      // Check if teacher exists
+      const teacherExists = db.prepare('SELECT id FROM teachers WHERE id = ?').get(teacherId);
+      if (!teacherExists) {
+        return res.status(400).json({ error: 'Teacher does not exist' });
+      }
+
+      // Check if module exists
+      const moduleExists = db.prepare('SELECT id FROM modules WHERE id = ?').get(moduleId);
+      if (!moduleExists) {
+        return res.status(400).json({ error: 'Module does not exist' });
+      }
+
       db.prepare('INSERT INTO assignments (id, teacherId, moduleId, type, hours) VALUES (?, ?, ?, ?, ?)')
         .run(uuidv4(), teacherId, moduleId, type, hours);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error creating assignment:', err.message);
+      res.status(500).json({ error: 'Failed to create assignment', details: err.message });
+    }
   });
 
   app.put('/api/assignments/:id', authenticateToken, isAdmin, (req, res, next) => {
     try {
       const { teacherId, moduleId, type, hours } = req.body;
+      console.log('Updating assignment with data:', { teacherId, moduleId, type, hours });
+      
+      // Validate inputs
+      if (!teacherId || !moduleId || !type || !hours) {
+        return res.status(400).json({ error: 'Missing required fields: teacherId, moduleId, type, hours' });
+      }
+
       db.prepare('UPDATE assignments SET teacherId = ?, moduleId = ?, type = ?, hours = ? WHERE id = ?')
         .run(teacherId, moduleId, type, hours, req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error updating assignment:', err.message);
+      res.status(500).json({ error: 'Failed to update assignment', details: err.message });
+    }
   });
 
   app.delete('/api/assignments/:id', authenticateToken, isAdmin, (req, res, next) => {
     try {
       db.prepare('DELETE FROM assignments WHERE id = ?').run(req.params.id);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error deleting assignment:', err.message);
+      res.status(500).json({ error: 'Failed to delete assignment', details: err.message });
+    }
   });
 
   // --- MESSAGE ROUTES ---
   app.get('/api/messages', authenticateToken, (req, res) => {
-    res.json(db.prepare('SELECT * FROM messages').all());
+    try {
+      res.json(db.prepare('SELECT * FROM messages').all());
+    } catch (err: any) {
+      console.error('Error fetching messages:', err.message);
+      res.status(500).json({ error: 'Failed to fetch messages', details: err.message });
+    }
   });
 
   app.post('/api/messages', authenticateToken, (req, res, next) => {
     try {
       const { senderId, receiverId, content, createdAt, status, moduleId, moduleType, hours, isRead } = req.body;
+      console.log('Creating message with data:', { senderId, receiverId, content });
+      
+      // Validate inputs
+      if (!senderId || !receiverId || !content) {
+        return res.status(400).json({ error: 'Missing required fields: senderId, receiverId, content' });
+      }
+
       db.prepare('INSERT INTO messages (id, senderId, receiverId, content, createdAt, status, moduleId, moduleType, hours, isRead) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(uuidv4(), senderId, receiverId, content, createdAt, status, moduleId || null, moduleType || null, hours || null, isRead ? 1 : 0);
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error creating message:', err.message);
+      res.status(500).json({ error: 'Failed to create message', details: err.message });
+    }
   });
 
   app.put('/api/messages/read-all/:receiverId', authenticateToken, (req, res) => {
-    db.prepare('UPDATE messages SET isRead = 1 WHERE receiverId = ?').run(req.params.receiverId);
-    res.json({ success: true });
+    try {
+      db.prepare('UPDATE messages SET isRead = 1 WHERE receiverId = ?').run(req.params.receiverId);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('Error marking messages as read:', err.message);
+      res.status(500).json({ error: 'Failed to mark messages as read', details: err.message });
+    }
   });
 
   app.put('/api/messages/:id/status', authenticateToken, (req, res, next) => {
     try {
       const { status } = req.body;
       const { id } = req.params;
+      console.log('Updating message status:', { id, status });
+      
       db.prepare('UPDATE messages SET status = ? WHERE id = ?').run(status, id);
       if (status === 'ACCEPTED') {
         const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as any;
@@ -455,7 +607,10 @@ async function startServer() {
         }
       }
       res.json({ success: true });
-    } catch (err) { next(err); }
+    } catch (err: any) {
+      console.error('Error updating message status:', err.message);
+      res.status(500).json({ error: 'Failed to update message status', details: err.message });
+    }
   });
 
   // --- VITE / STATIC SERVING ---
