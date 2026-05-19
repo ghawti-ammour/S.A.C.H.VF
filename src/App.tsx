@@ -335,10 +335,10 @@ function AppContent() {
   const { t, language, setLanguage } = useTranslation();
   const [showSplash, setShowSplash] = useState(true);
   const [session, setSession] = useState<UserSession | null>(null);
-  const [parcours, setParcours] = useState<Parcours[]>(MOCK_PARCOURS);
-  const [teachers, setTeachers] = useState<Teacher[]>(MOCK_TEACHERS);
-  const [modules, setModules] = useState<Module[]>(MOCK_MODULES);
-  const [assignments, setAssignments] = useState<Assignment[]>(MOCK_ASSIGNMENTS);
+  const [parcours, setParcours] = useState<Parcours[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedParcoursId, setSelectedParcoursId] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
@@ -2246,6 +2246,7 @@ function AppContent() {
           </div>
         )}
       </AnimatePresence>
+      
 
       {/* Add Assignment Modal */}
       <AnimatePresence>
