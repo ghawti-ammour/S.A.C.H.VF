@@ -120,6 +120,25 @@ if (!existingAdmin) {
   db.prepare('UPDATE admin_profile SET password = ? WHERE id = ?').run(hashedPassword, existingAdmin.id);
 }
 
+// Seed initial Parcours for Render deployments
+const existingParcours = db.prepare('SELECT * FROM parcours').all() as any[];
+if (existingParcours.length === 0) {
+  console.log('Seeding initial Parcours data...');
+  const sampleParcours = [
+    { id: uuidv4(), name: 'Licence Informatique', type: 'LMD', level: 'L1', year: 1, specialty: 'Informatique', description: 'Première année Licence Informatique' },
+    { id: uuidv4(), name: 'Licence Informatique', type: 'LMD', level: 'L2', year: 2, specialty: 'Informatique', description: 'Deuxième année Licence Informatique' },
+    { id: uuidv4(), name: 'Licence Informatique', type: 'LMD', level: 'L3', year: 3, specialty: 'Informatique', description: 'Troisième année Licence Informatique' },
+    { id: uuidv4(), name: 'Master Informatique', type: 'LMD', level: 'M1', year: 1, specialty: 'Informatique', description: 'Première année Master Informatique' },
+    { id: uuidv4(), name: 'Master Informatique', type: 'LMD', level: 'M2', year: 2, specialty: 'Informatique', description: 'Deuxième année Master Informatique' }
+  ];
+  
+  const insertParcours = db.prepare('INSERT INTO parcours (id, name, type, level, year, specialty, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  sampleParcours.forEach(p => {
+    insertParcours.run(p.id, p.name, p.type, p.level, p.year, p.specialty, p.description);
+  });
+  console.log('Initial Parcours data seeded successfully');
+}
+
 // ==========================================
 // 2. MIDDLEWARE
 // ==========================================
