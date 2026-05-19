@@ -321,14 +321,25 @@ async function startServer() {
   app.post('/api/modules', authenticateToken, isAdmin, (req, res, next) => {
     try {
       const { code, name, semester, cmHours, tdHours, tpHours, parcoursId } = req.body;
+      console.log('Creating module with data:', { code, name, semester, cmHours, tdHours, tpHours, parcoursId });
+      
       if (!parcoursId) {
         return res.status(400).json({ error: 'A module must be linked to a Parcours.' });
       }
+
+      // Check if parcours exists
+      const parcoursExists = db.prepare('SELECT id FROM parcours WHERE id = ?').get(parcoursId);
+      if (!parcoursExists) {
+        console.error('Parcours not found:', parcoursId);
+        return res.status(400).json({ error: 'The selected Parcours does not exist.' });
+      }
+
       db.prepare('INSERT INTO modules (id, code, name, semester, cmHours, tdHours, tpHours, parcoursId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         .run(uuidv4(), code, name, semester, cmHours, tdHours, tpHours, parcoursId);
       res.json({ success: true });
-    } catch (err) {
-      next(err);
+    } catch (err: any) {
+      console.error('Error creating module:', err.message);
+      res.status(500).json({ error: 'Failed to create module', details: err.message });
     }
   });
 
